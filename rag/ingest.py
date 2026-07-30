@@ -36,10 +36,12 @@ def run_ingestion():
     base_dir = os.path.dirname(__file__)
     policies_dir = os.path.join(base_dir, "data", "policies")
     historical_cases_dir = os.path.join(base_dir, "data", "historical_cases")
+    catalog_dir = os.path.join(base_dir, "data", "catalog")
     
     # Reasoning: Ingest policies and historical cases with their respective doc_type tags.
     ingest_directory(policies_dir, "policy")
     ingest_directory(historical_cases_dir, "historical_case")
+    ingest_directory(catalog_dir, "catalog")
     
     print("Ingestion complete.")
 

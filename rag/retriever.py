@@ -1,4 +1,4 @@
-from vectorstore_client import get_collection
+from rag.vectorstore_client import get_collection
 
 def retrieve_context(query, doc_type=None, top_k=2):
     # Reasoning: We retrieve the shared ChromaDB collection.
