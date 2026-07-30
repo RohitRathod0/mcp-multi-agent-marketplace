@@ -1,0 +1,9 @@
+mcp
+fastapi
+uvicorn
+langgraph
+anthropic
+qdrant-client
+chromadb
+python-dotenv
+sqlalchemy
