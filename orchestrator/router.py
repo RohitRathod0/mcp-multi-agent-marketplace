@@ -62,8 +62,10 @@ TOOLS = [
 # Reasoning: This node gives Mistral the user query and all tool definitions.
 # Mistral decides which tool to call and with what arguments.
 def router_node(state: OrchestratorState) -> OrchestratorState:
-    # Load the system prompt from the versioned prompt file.
-    prompt_path = os.path.join(os.path.dirname(__file__), "prompts", "orchestrator_v1.md")
+    # Load the system prompt from the versioned prompt file based on ORCHESTRATOR_PROMPT_VERSION env var.
+    prompt_ver = os.getenv("ORCHESTRATOR_PROMPT_VERSION", "v1")
+    prompt_filename = f"orchestrator_{prompt_ver}.md"
+    prompt_path = os.path.join(os.path.dirname(__file__), "prompts", prompt_filename)
     with open(prompt_path, "r") as f:
         system_prompt = f.read()
 
