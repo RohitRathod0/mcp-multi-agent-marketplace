@@ -6,9 +6,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Reasoning: Single place to access all config so any file can just import from here.
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-MODEL_NAME = os.getenv("MODEL_NAME", "claude-3-5-sonnet-20241022")
+MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "")
+MODEL_NAME = os.getenv("MODEL_NAME", "mistral-large-latest")
 
 # Reasoning: Validate at import time so errors surface immediately on startup.
-if not ANTHROPIC_API_KEY:
-    raise ValueError("ANTHROPIC_API_KEY is not set. Please add it to your .env file.")
+if not MISTRAL_API_KEY:
+    raise ValueError("MISTRAL_API_KEY is not set. Please add it to your .env file.")

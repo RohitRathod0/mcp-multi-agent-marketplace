@@ -1,9 +1,9 @@
-import anthropic
+from mistralai import Mistral
 
-def synthesize(messages: list, client: anthropic.Anthropic, model_name: str) -> str:
-    """Ask Claude to produce a clean final answer using the tool results already in message history."""
-    # Reasoning: We append a final instruction telling Claude to now write its user-facing response.
-    # The full message history (with tool results) is already present, so Claude has all context.
+def synthesize(messages: list, client: Mistral, model_name: str) -> str:
+    """Ask Mistral to produce a clean final answer using the tool results already in message history."""
+    # Reasoning: We append a final instruction telling Mistral to now write its user-facing response.
+    # The full message history (with tool results) is already present, so the model has all context.
     synthesis_prompt = (
         "Based on the tool results above, write a clear, helpful, and concise answer for the user. "
         "Cite the specific data points from the tool results. "
@@ -12,11 +12,10 @@ def synthesize(messages: list, client: anthropic.Anthropic, model_name: str) -> 
 
     synthesis_messages = messages + [{"role": "user", "content": synthesis_prompt}]
 
-    # Reasoning: Call Claude without tools this time — we just want a plain text answer.
-    response = client.messages.create(
+    # Reasoning: Call Mistral without tools this time — we just want a plain text answer.
+    response = client.chat.complete(
         model=model_name,
-        max_tokens=1024,
         messages=synthesis_messages
     )
 
-    return response.content[0].text
+    return response.choices[0].message.content
