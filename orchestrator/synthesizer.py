@@ -1,4 +1,5 @@
 from mistralai import Mistral
+from shared.mistral_utils import call_mistral_with_retry
 
 def synthesize(messages: list, client: Mistral, model_name: str) -> str:
     """Ask Mistral to produce a clean final answer using the tool results already in message history."""
@@ -13,9 +14,10 @@ def synthesize(messages: list, client: Mistral, model_name: str) -> str:
     synthesis_messages = messages + [{"role": "user", "content": synthesis_prompt}]
 
     # Reasoning: Call Mistral without tools this time — we just want a plain text answer.
-    response = client.chat.complete(
+    # Retries on rate limits (429) rather than falling back to canned text.
+    response = call_mistral_with_retry(lambda: client.chat.complete(
         model=model_name,
         messages=synthesis_messages
-    )
+    ))
 
     return response.choices[0].message.content

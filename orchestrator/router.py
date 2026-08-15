@@ -10,6 +10,7 @@ from typing import TypedDict
 from langgraph.graph import StateGraph, END
 
 from shared.config import MISTRAL_API_KEY, MODEL_NAME
+from shared.mistral_utils import call_mistral_with_retry
 from agents.pricing_agent.tools import get_price, suggest_discount, compare_competitor_price
 from agents.inventory_agent.tools import check_stock, forecast_restock, flag_low_stock
 from agents.risk_support_agent.tools import check_seller_risk, get_return_pattern, create_support_ticket, escalate
@@ -62,7 +63,7 @@ TOOLS = [
 # Reasoning: This node gives Mistral the user query and all tool definitions.
 # Mistral decides which tool to call and with what arguments.
 def router_node(state: OrchestratorState) -> OrchestratorState:
-    # Load the system prompt from the versioned prompt file based on ORCHESTRATOR_PROMPT_VERSION env var.
+    # Reasoning: Load the system prompt from the versioned prompt file based on ORCHESTRATOR_PROMPT_VERSION env var.
     prompt_ver = os.getenv("ORCHESTRATOR_PROMPT_VERSION", "v1")
     prompt_filename = f"orchestrator_{prompt_ver}.md"
     prompt_path = os.path.join(os.path.dirname(__file__), "prompts", prompt_filename)
@@ -74,12 +75,13 @@ def router_node(state: OrchestratorState) -> OrchestratorState:
     messages += state["messages"]
     messages.append({"role": "user", "content": state["user_query"]})
 
-    # Reasoning: Call Mistral with the full tool list. Mistral returns tool_calls in its response.
-    response = client.chat.complete(
+    # Reasoning: Call Mistral with the full tool list, retrying on rate limits (429).
+    # Mistral returns tool_calls in its response.
+    response = call_mistral_with_retry(lambda: client.chat.complete(
         model=MODEL_NAME,
         tools=TOOLS,
         messages=messages
-    )
+    ))
 
     assistant_message = response.choices[0].message
 

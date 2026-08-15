@@ -3,6 +3,7 @@ import os
 import json
 import csv
 import argparse
+import time
 
 # Add project root to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
@@ -27,13 +28,13 @@ TOOL_TO_AGENT = {
     "none": "none"
 }
 
-def evaluate(prompt_version: str, output_csv: str):
+def evaluate(prompt_version: str, output_csv: str, eval_filename: str = "eval_set.jsonl"):
     os.environ["ORCHESTRATOR_PROMPT_VERSION"] = prompt_version
     
     # Import orchestrator after setting env var so it picks up the prompt version
     from orchestrator.router import orchestrator_graph
     
-    eval_set_path = os.path.join(os.path.dirname(__file__), "eval_set.jsonl")
+    eval_set_path = os.path.join(os.path.dirname(__file__), eval_filename)
     results_dir = os.path.join(os.path.dirname(__file__), "results")
     os.makedirs(results_dir, exist_ok=True)
     
@@ -128,7 +129,12 @@ def evaluate(prompt_version: str, output_csv: str):
         
         status_symbol = "[PASS]" if (routing_correct and tool_correct and grounded) else "[FAIL]"
         print(f"[{idx}/{total}] {status_symbol} Query: \"{query[:45]}...\" | Tool: {act_tool} | Grounded: {grounded}")
-        
+
+        # Reasoning: Pace requests to stay under the Mistral rate limit (each query makes
+        # 2 API calls: router + synthesizer). The retry/backoff in call_mistral_with_retry
+        # is a safety net, not a substitute for reasonable pacing.
+        time.sleep(1.5)
+
     csv_file_path = os.path.join(results_dir, output_csv)
     fieldnames = ["query", "expected_agent", "actual_agent", "routing_correct", "expected_tool", "actual_tool", "tool_correct", "grounded", "notes"]
     
@@ -157,6 +163,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MCP Marketplace Orchestrator Eval Harness")
     parser.add_argument("--prompt", default="v1", help="Prompt version (e.g. v1, v2)")
     parser.add_argument("--output", default="baseline_v1.csv", help="Output CSV filename")
+    parser.add_argument("--eval_file", default="eval_set.jsonl", help="Eval dataset JSONL filename")
     args = parser.parse_args()
     
-    evaluate(args.prompt, args.output)
+    evaluate(args.prompt, args.output, args.eval_file)

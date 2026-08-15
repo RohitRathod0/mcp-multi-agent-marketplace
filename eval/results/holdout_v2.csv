@@ -1,0 +1,15 @@
+query,expected_agent,actual_agent,routing_correct,expected_tool,actual_tool,tool_correct,grounded,notes
+Suggest a discount strategy for high-margin items to clear them out grounded in policy limits.,pricing,inventory,False,suggest_discount,flag_low_stock,False,True,"Routing mismatch (Expected pricing, got inventory); Tool mismatch (Expected suggest_discount, got flag_low_stock)"
+Can we price match an Amazon listing for iphone-15 against our baseline price?,pricing,pricing,True,compare_competitor_price,compare_competitor_price,True,True,PASS
+Will standard generic-headphones require manager authorization for a 8% promotional markdown?,pricing,pricing,True,suggest_discount,get_price,False,False,"Tool mismatch (Expected suggest_discount, got get_price); Missing grounding keywords ['10%', 'managerial approval']"
+A vendor named audioking had order complaints during a regional flood. Does our policy cover disaster refunds or must we pass ticket TICK-902 to senior staff?,risk_support,risk_support,True,escalate,escalate,True,True,PASS
+An order ticket TICK-309 involves a dispute where policy retrieval score is near zero confidence. How should this ticket be handled?,risk_support,risk_support,True,escalate,escalate,True,True,PASS
+Merchant techworld-99 received 4 complaints this past week claiming items were not as described. Should we issue a suspension warning?,risk_support,risk_support,True,check_seller_risk,check_seller_risk,True,True,PASS
+Why was TechWorld-99 permanently banned in previous audit records?,risk_support,risk_support,True,get_return_pattern,get_return_pattern,True,True,PASS
+"If central inventory for p-tv-65 drops under 5 units, what happens to automated marketplace discounts according to warehouse rules?",inventory,inventory,True,flag_low_stock,check_stock,False,True,"Tool mismatch (Expected flag_low_stock, got check_stock)"
+What is the standard supplier lead time window when reordering new shipments of electronics?,inventory,none,False,forecast_restock,none,False,True,"Routing mismatch (Expected inventory, got none); Tool mismatch (Expected forecast_restock, got none)"
+Check available stock count and storage bin location for gen-hd-01.,inventory,inventory,True,check_stock,check_stock,True,True,PASS
+We need to log a formal dispute ticket for order ORD-4409 due to damaged transit packaging.,risk_support,risk_support,True,create_support_ticket,create_support_ticket,True,True,PASS
+A seller with a 20% return rate asks if we can discount their low stock items or if their account requires manual review.,risk_support,none,False,check_seller_risk,none,False,True,"Routing mismatch (Expected risk_support, got none); Tool mismatch (Expected check_seller_risk, got none)"
+Is p-tv-65 stock sufficient to run a Cyber Monday 30% promotional event?,inventory,inventory,True,check_stock,check_stock,True,True,PASS
+"Customer requesting full refund on order ORD-8812 after a hurricane destroyed warehouse access, but retrieval relevance is ambiguous. Resolve ticket TICK-770.",risk_support,risk_support,True,escalate,escalate,True,True,PASS
