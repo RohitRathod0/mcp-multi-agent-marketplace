@@ -11,9 +11,7 @@ from langgraph.graph import StateGraph, END
 
 from shared.config import MISTRAL_API_KEY, MODEL_NAME
 from shared.mistral_utils import call_mistral_with_retry
-from agents.pricing_agent.tools import get_price, suggest_discount, compare_competitor_price
-from agents.inventory_agent.tools import check_stock, forecast_restock, flag_low_stock
-from agents.risk_support_agent.tools import check_seller_risk, get_return_pattern, create_support_ticket, escalate
+from orchestrator.mcp_clients import get_agent_pool, TOOL_ROUTES
 
 # Reasoning: Initialize a single Mistral client reused by all orchestrator nodes.
 client = Mistral(api_key=MISTRAL_API_KEY)
@@ -23,25 +21,19 @@ client = Mistral(api_key=MISTRAL_API_KEY)
 # Every node reads from and writes to this state object.
 class OrchestratorState(TypedDict):
     user_query: str           # The original user question
-    agent_called: str         # Which tool the router decided to invoke
-    tool_result: str          # The raw output from the tool
+    agent_called: str         # The first tool the router decided to invoke (kept for
+                               # backward-compat with single-agent eval scoring)
+    tool_result: str          # The raw output from the tool(s), concatenated in call order
+    tool_calls: list          # Full trace of every tool call this turn: [{agent, tool, args, result}]
     messages: list            # Full conversation history for multi-turn support
     final_answer: str         # The synthesized, user-facing answer
 
-# --- Tool Registry ---
-# Reasoning: A flat dict mapping tool names to their functions makes routing trivial.
-TOOL_REGISTRY = {
-    "get_price": get_price,
-    "suggest_discount": suggest_discount,
-    "compare_competitor_price": compare_competitor_price,
-    "check_stock": check_stock,
-    "forecast_restock": forecast_restock,
-    "flag_low_stock": flag_low_stock,
-    "check_seller_risk": check_seller_risk,
-    "get_return_pattern": get_return_pattern,
-    "create_support_ticket": create_support_ticket,
-    "escalate": escalate,
-}
+# Reasoning: Cap how many tool-calling round-trips the orchestrator will make for a
+# single query. Mistral can request several tools in one turn (e.g. pricing +
+# inventory for a combined question) and/or ask for more tools after seeing a result
+# (e.g. check_seller_risk before deciding to suggest_discount) — this loop supports
+# both, bounded so a confused model can't loop forever.
+MAX_TOOL_ROUNDS = 4
 
 # --- Tool Definitions for Mistral ---
 # Reasoning: Mistral uses the OpenAI-style "function" tool format.
@@ -60,8 +52,12 @@ TOOLS = [
 ]
 
 # --- Node: Router ---
-# Reasoning: This node gives Mistral the user query and all tool definitions.
-# Mistral decides which tool to call and with what arguments.
+# Reasoning: This node gives Mistral the user query and all tool definitions, then loops
+# tool-calling round-trips so a single query can be resolved by multiple agents (e.g.
+# "is it in stock, and should we discount it?" needs both inventory and pricing) before
+# handing off to the synthesizer. Every tool call is executed as a real MCP request
+# against the owning agent's subprocess via the shared MCPAgentPool — not an in-process
+# function call — so pricing/inventory/risk really are independent services here.
 def router_node(state: OrchestratorState) -> OrchestratorState:
     # Reasoning: Load the system prompt from the versioned prompt file based on ORCHESTRATOR_PROMPT_VERSION env var.
     prompt_ver = os.getenv("ORCHESTRATOR_PROMPT_VERSION", "v1")
@@ -75,47 +71,63 @@ def router_node(state: OrchestratorState) -> OrchestratorState:
     messages += state["messages"]
     messages.append({"role": "user", "content": state["user_query"]})
 
-    # Reasoning: Call Mistral with the full tool list, retrying on rate limits (429).
-    # Mistral returns tool_calls in its response.
-    response = call_mistral_with_retry(lambda: client.chat.complete(
-        model=MODEL_NAME,
-        tools=TOOLS,
-        messages=messages
-    ))
+    pool = get_agent_pool()
+    tool_calls_trace = []
+    assistant_message = None
 
-    assistant_message = response.choices[0].message
+    for _ in range(MAX_TOOL_ROUNDS):
+        # Reasoning: Call Mistral with the full tool list, retrying on rate limits (429).
+        # Mistral returns tool_calls in its response — possibly more than one per turn.
+        response = call_mistral_with_retry(lambda: client.chat.complete(
+            model=MODEL_NAME,
+            tools=TOOLS,
+            messages=messages
+        ))
+        assistant_message = response.choices[0].message
 
-    # Reasoning: Check if Mistral chose to call a tool (tool_calls will be non-empty).
-    if assistant_message.tool_calls:
-        tool_call = assistant_message.tool_calls[0]
-        tool_name = tool_call.function.name
+        if not assistant_message.tool_calls:
+            # Reasoning: Mistral is done calling tools (or never needed one) — record its
+            # final text turn so the synthesizer/history sees it, then stop looping.
+            messages.append({"role": "assistant", "content": assistant_message.content})
+            break
 
-        # Reasoning: Mistral returns arguments as a JSON string — parse it into a dict.
-        tool_args = json.loads(tool_call.function.arguments)
+        # Reasoning: Append the assistant's tool-call turn, then execute every tool it
+        # asked for this round via the real MCP client pool and append each result.
+        messages.append({"role": "assistant", "content": assistant_message.content, "tool_calls": assistant_message.tool_calls})
+        for tool_call in assistant_message.tool_calls:
+            tool_name = tool_call.function.name
+            tool_args = json.loads(tool_call.function.arguments)
+            tool_result = pool.call_tool(tool_name, tool_args)
 
-        # Reasoning: Call the actual Python function from our registry.
-        tool_fn = TOOL_REGISTRY.get(tool_name)
-        tool_result = tool_fn(**tool_args) if tool_fn else f"Tool '{tool_name}' not found."
+            tool_calls_trace.append({
+                "agent": TOOL_ROUTES.get(tool_name, ("unknown", None))[0],
+                "tool": tool_name,
+                "args": tool_args,
+                "result": tool_result,
+            })
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "name": tool_name,
+                "content": tool_result
+            })
 
-        state["agent_called"] = tool_name
-        state["tool_result"] = tool_result
+    # Reasoning: Persist everything except the system prompt — it's reloaded fresh from
+    # the versioned prompt file on every call, so keeping it out of state["messages"]
+    # avoids duplicating/stacking system messages across turns.
+    state["messages"] = [m for m in messages if m.get("role") != "system"]
+    state["tool_calls"] = tool_calls_trace
 
-        # Reasoning: Append the assistant's tool call and the tool result to message history.
-        # This is required by Mistral's multi-turn format.
-        state["messages"].append({"role": "user", "content": state["user_query"]})
-        state["messages"].append({"role": "assistant", "content": None, "tool_calls": [tool_call]})
-        state["messages"].append({
-            "role": "tool",
-            "tool_call_id": tool_call.id,
-            "name": tool_name,
-            "content": tool_result
-        })
+    if tool_calls_trace:
+        # Reasoning: Keep agent_called as the *first* tool for backward-compat with
+        # single-agent eval scoring; tool_result concatenates every result in call
+        # order so the synthesizer (and multi-agent eval checks) can see all of them.
+        state["agent_called"] = tool_calls_trace[0]["tool"]
+        state["tool_result"] = "\n---\n".join(c["result"] for c in tool_calls_trace)
     else:
-        # Reasoning: If Mistral chose not to call a tool, capture its text response directly.
+        # Reasoning: Mistral chose not to call any tool — capture its text response directly.
         state["agent_called"] = "none"
-        state["tool_result"] = assistant_message.content
-        state["messages"].append({"role": "user", "content": state["user_query"]})
-        state["messages"].append({"role": "assistant", "content": assistant_message.content})
+        state["tool_result"] = assistant_message.content if assistant_message else "No tool called."
 
     return state
 

@@ -30,5 +30,7 @@ def mcp_escalate(ticket_id: str) -> str:
 
 if __name__ == "__main__":
     # Reasoning: Start the server using stdio transport.
-    print("Starting Risk & Support Agent MCP Server...")
+    # Log to stderr, never stdout — stdio transport uses stdout as the JSON-RPC channel.
+    import sys
+    print("Starting Risk & Support Agent MCP Server...", file=sys.stderr)
     mcp.run()

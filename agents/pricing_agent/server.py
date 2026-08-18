@@ -25,5 +25,7 @@ def mcp_compare_competitor_price(product_id: str) -> str:
 
 if __name__ == "__main__":
     # Reasoning: Start the server using stdio transport by default, which is standard for MCP.
-    print("Starting Pricing Agent MCP Server...")
+    # Log to stderr, never stdout — stdio transport uses stdout as the JSON-RPC channel.
+    import sys
+    print("Starting Pricing Agent MCP Server...", file=sys.stderr)
     mcp.run()

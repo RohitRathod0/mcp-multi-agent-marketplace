@@ -1,36 +1,36 @@
-query,expected_agent,actual_agent,routing_correct,expected_tool,actual_tool,tool_correct,grounded,notes
-What is the baseline price for the iphone-15 right now?,pricing,pricing,True,get_price,get_price,True,True,PASS
-Can you check how much the generic-headphones cost?,pricing,pricing,True,get_price,get_price,True,True,PASS
-What is the listing price for product premium-tv?,pricing,pricing,True,get_price,get_price,True,True,PASS
-How much can we discount the iphone-15 for Black Friday sales?,pricing,inventory,False,suggest_discount,check_stock,False,True,"Routing mismatch (Expected pricing, got inventory); Tool mismatch (Expected suggest_discount, got check_stock)"
-Can I give a 15% markdown on generic-headphones to clear out inventory?,pricing,inventory,False,suggest_discount,check_stock,False,False,"Routing mismatch (Expected pricing, got inventory); Tool mismatch (Expected suggest_discount, got check_stock); Missing grounding keywords ['10%', '20%', '90 days']"
-Suggest a discount strategy for premium-tv for clearance sale.,pricing,pricing,True,suggest_discount,suggest_discount,True,True,PASS
-Are we competitive with BestBuy on the iphone-15 price?,pricing,pricing,True,compare_competitor_price,compare_competitor_price,True,True,PASS
-How does our price for premium-tv compare against Amazon or other competitors?,pricing,pricing,True,compare_competitor_price,compare_competitor_price,True,True,PASS
-Compare competitor market price for generic-headphones.,pricing,pricing,True,compare_competitor_price,compare_competitor_price,True,True,PASS
-How many units of iph-15-base do we currently have in stock?,inventory,inventory,True,check_stock,check_stock,True,True,PASS
-Check stock level for item gen-hd-01 in the warehouse.,inventory,inventory,True,check_stock,check_stock,True,True,PASS
-Do we have any p-tv-65 available in inventory right now?,inventory,inventory,True,check_stock,check_stock,True,True,PASS
-Should we reorder stock for iph-15-base based on warehouse replenishment rules?,inventory,inventory,True,forecast_restock,forecast_restock,True,True,PASS
-Forecast if we need to restock p-tv-65 based on 30-day sales volume.,inventory,inventory,True,forecast_restock,forecast_restock,True,True,PASS
-Calculate restock forecast requirement for product gen-hd-01.,inventory,inventory,True,forecast_restock,forecast_restock,True,True,PASS
-Scan the entire inventory warehouse and flag any low stock items.,inventory,inventory,True,flag_low_stock,flag_low_stock,True,True,PASS
-Which items in central storage are falling under critical stock threshold?,inventory,inventory,True,flag_low_stock,flag_low_stock,True,True,PASS
-Run a low stock alert check across all warehouse SKUs.,inventory,inventory,True,flag_low_stock,flag_low_stock,True,True,PASS
-Assess the risk level and return metrics for seller techworld-99.,risk_support,risk_support,True,check_seller_risk,check_seller_risk,True,True,PASS
-Evaluate seller risk for audioking based on fraud policy thresholds.,risk_support,none,False,check_seller_risk,none,False,True,"Routing mismatch (Expected risk_support, got none); Tool mismatch (Expected check_seller_risk, got none)"
-Check if merchant megastore-12 should be flagged for high return rate.,risk_support,risk_support,True,check_seller_risk,check_seller_risk,True,True,PASS
-Fetch past flagged return cases and fraud patterns for techworld-99.,risk_support,risk_support,True,get_return_pattern,get_return_pattern,True,True,PASS
-Has seller audioking been involved in any historical return fraud cases?,risk_support,risk_support,True,get_return_pattern,get_return_pattern,True,True,PASS
-What are the historical return incident patterns for merchant unknown-seller?,risk_support,risk_support,True,get_return_pattern,get_return_pattern,True,True,PASS
-Open a support ticket for order ORD-9928 regarding damaged package.,risk_support,risk_support,True,create_support_ticket,create_support_ticket,True,True,PASS
-Log a customer service ticket for order ORD-1044 because item was not delivered.,risk_support,risk_support,True,create_support_ticket,create_support_ticket,True,True,PASS
-Create ticket for order ORD-7711: buyer received wrong color TV.,risk_support,risk_support,True,create_support_ticket,create_support_ticket,True,True,PASS
-Escalate support ticket TICK-1 to a human agent immediately.,risk_support,risk_support,True,escalate,escalate,True,True,PASS
-Hand off ticket TICK-45 to a human manager due to low confidence.,risk_support,risk_support,True,escalate,escalate,True,True,PASS
-A buyer demands a refund for order ORD-5544 due to an unannounced typhoon. Our policy context has low relevance for natural disasters. What should we do with ticket TICK-88?,risk_support,risk_support,True,escalate,escalate,True,True,PASS
-We have an edge case order issue where retrieval policy context relevance is very low. Please process ticket TICK-99.,risk_support,risk_support,True,escalate,escalate,True,True,PASS
-Is p-tv-65 in stock and what is its baseline price?,inventory,inventory,True,check_stock,check_stock,True,True,PASS
-Can we give a clearance discount on iph-15-base when stock is low?,pricing,inventory,False,suggest_discount,check_stock,False,True,"Routing mismatch (Expected pricing, got inventory); Tool mismatch (Expected suggest_discount, got check_stock)"
-Should we suspend techworld-99 and what discount do they offer on electronics?,risk_support,risk_support,True,check_seller_risk,check_seller_risk,True,True,PASS
-Check restock forecast for iph-15-base and flag if below warehouse threshold.,inventory,inventory,True,forecast_restock,forecast_restock,True,True,PASS
+query,expected_agent,actual_agent,routing_correct,expected_tool,actual_tool,tool_correct,grounded,num_tool_calls,all_tools_called,notes
+What is the baseline price for the iphone-15 right now?,pricing,pricing,True,get_price,get_price,True,True,1,get_price,PASS
+Can you check how much the generic-headphones cost?,pricing,pricing,True,get_price,get_price,True,True,1,get_price,PASS
+What is the listing price for product premium-tv?,pricing,pricing,True,get_price,get_price,True,True,1,get_price,PASS
+How much can we discount the iphone-15 for Black Friday sales?,pricing,pricing,True,suggest_discount,suggest_discount,True,True,1,suggest_discount,PASS
+Can I give a 15% markdown on generic-headphones to clear out inventory?,pricing,inventory,False,suggest_discount,check_stock,False,False,1,check_stock,"Routing mismatch (Expected ['pricing'], got ['inventory']); Tool mismatch (Expected ['suggest_discount'], got ['check_stock']); Missing grounding keywords ['10%', '20%', '90 days']"
+Suggest a discount strategy for premium-tv for clearance sale.,pricing,pricing,True,suggest_discount,suggest_discount,True,True,1,suggest_discount,PASS
+Are we competitive with BestBuy on the iphone-15 price?,pricing,pricing,True,compare_competitor_price,compare_competitor_price,True,True,1,compare_competitor_price,PASS
+How does our price for premium-tv compare against Amazon or other competitors?,pricing,pricing,True,compare_competitor_price,compare_competitor_price,True,True,1,compare_competitor_price,PASS
+Compare competitor market price for generic-headphones.,pricing,pricing,True,compare_competitor_price,compare_competitor_price,True,True,1,compare_competitor_price,PASS
+How many units of iph-15-base do we currently have in stock?,inventory,inventory,True,check_stock,check_stock,True,True,1,check_stock,PASS
+Check stock level for item gen-hd-01 in the warehouse.,inventory,inventory,True,check_stock,check_stock,True,True,1,check_stock,PASS
+Do we have any p-tv-65 available in inventory right now?,inventory,inventory,True,check_stock,check_stock,True,True,1,check_stock,PASS
+Should we reorder stock for iph-15-base based on warehouse replenishment rules?,inventory,inventory,True,forecast_restock,forecast_restock,True,True,1,forecast_restock,PASS
+Forecast if we need to restock p-tv-65 based on 30-day sales volume.,inventory,inventory,True,forecast_restock,forecast_restock,True,True,1,forecast_restock,PASS
+Calculate restock forecast requirement for product gen-hd-01.,inventory,inventory,True,forecast_restock,forecast_restock,True,True,1,forecast_restock,PASS
+Scan the entire inventory warehouse and flag any low stock items.,inventory,inventory,True,flag_low_stock,flag_low_stock,True,True,1,flag_low_stock,PASS
+Which items in central storage are falling under critical stock threshold?,inventory,inventory,True,flag_low_stock,flag_low_stock,True,True,1,flag_low_stock,PASS
+Run a low stock alert check across all warehouse SKUs.,inventory,inventory,True,flag_low_stock,flag_low_stock,True,True,3,"check_stock,flag_low_stock,forecast_restock",PASS
+Assess the risk level and return metrics for seller techworld-99.,risk_support,risk_support,True,check_seller_risk,check_seller_risk,True,True,4,"check_seller_risk,create_support_ticket,escalate,get_return_pattern",PASS
+Evaluate seller risk for audioking based on fraud policy thresholds.,risk_support,none,False,check_seller_risk,none,False,True,0,none,"Routing mismatch (Expected ['risk_support'], got ['none']); Tool mismatch (Expected ['check_seller_risk'], got ['none'])"
+Check if merchant megastore-12 should be flagged for high return rate.,risk_support,risk_support,True,check_seller_risk,check_seller_risk,True,True,1,check_seller_risk,PASS
+Fetch past flagged return cases and fraud patterns for techworld-99.,risk_support,risk_support,True,get_return_pattern,get_return_pattern,True,True,1,get_return_pattern,PASS
+Has seller audioking been involved in any historical return fraud cases?,risk_support,risk_support,True,get_return_pattern,get_return_pattern,True,True,1,get_return_pattern,PASS
+What are the historical return incident patterns for merchant unknown-seller?,risk_support,risk_support,True,get_return_pattern,get_return_pattern,True,True,1,get_return_pattern,PASS
+Open a support ticket for order ORD-9928 regarding damaged package.,risk_support,risk_support,True,create_support_ticket,create_support_ticket,True,True,1,create_support_ticket,PASS
+Log a customer service ticket for order ORD-1044 because item was not delivered.,risk_support,risk_support,True,create_support_ticket,create_support_ticket,True,True,1,create_support_ticket,PASS
+Create ticket for order ORD-7711: buyer received wrong color TV.,risk_support,risk_support,True,create_support_ticket,create_support_ticket,True,True,1,create_support_ticket,PASS
+Escalate support ticket TICK-1 to a human agent immediately.,risk_support,risk_support,True,escalate,escalate,True,True,1,escalate,PASS
+Hand off ticket TICK-45 to a human manager due to low confidence.,risk_support,risk_support,True,escalate,escalate,True,True,1,escalate,PASS
+A buyer demands a refund for order ORD-5544 due to an unannounced typhoon. Our policy context has low relevance for natural disasters. What should we do with ticket TICK-88?,risk_support,risk_support,True,escalate,escalate,True,True,2,"create_support_ticket,escalate",PASS
+We have an edge case order issue where retrieval policy context relevance is very low. Please process ticket TICK-99.,risk_support,risk_support,True,escalate,escalate,True,True,1,escalate,PASS
+Is p-tv-65 in stock and what is its baseline price?,inventory,inventory,True,check_stock,check_stock,True,True,2,"check_stock,get_price",PASS
+Can we give a clearance discount on iph-15-base when stock is low?,pricing,inventory,True,suggest_discount,check_stock,True,True,2,"check_stock,suggest_discount",PASS
+Should we suspend techworld-99 and what discount do they offer on electronics?,risk_support,risk_support,True,check_seller_risk,check_seller_risk,True,True,3,"check_seller_risk,create_support_ticket,escalate",PASS
+Check restock forecast for iph-15-base and flag if below warehouse threshold.,inventory,inventory,True,forecast_restock,forecast_restock,True,True,2,"flag_low_stock,forecast_restock",PASS

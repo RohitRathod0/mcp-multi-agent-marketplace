@@ -24,5 +24,7 @@ def mcp_flag_low_stock() -> str:
 
 if __name__ == "__main__":
     # Reasoning: Start the server using stdio transport.
-    print("Starting Inventory Agent MCP Server...")
+    # Log to stderr, never stdout — stdio transport uses stdout as the JSON-RPC channel.
+    import sys
+    print("Starting Inventory Agent MCP Server...", file=sys.stderr)
     mcp.run()
