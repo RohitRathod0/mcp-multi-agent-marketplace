@@ -6,3 +6,9 @@ venv/
 env/
 .venv/
 .DS_Store
+
+# Stray debug/log files (e.g. from mistyped Windows-path shell redirects)
+*stderr_log*
+eval_debug_log.txt
+mcp_test_out.txt
+mcp_stderr.txt
