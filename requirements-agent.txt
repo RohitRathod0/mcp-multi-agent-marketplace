@@ -1,0 +1,9 @@
+# Dependencies for the three agent MCP server images only.
+#
+# Deliberately much smaller than the root requirements.txt: an agent server needs to
+# speak MCP and query the shared ChromaDB store, and nothing else. It has no LLM client,
+# no web framework, and no graph library, because an agent never calls a model or serves
+# the API — the orchestrator does both. Keeping this list minimal is also what keeps the
+# agent images from carrying (and needing credentials for) the Mistral SDK.
+fastmcp
+chromadb

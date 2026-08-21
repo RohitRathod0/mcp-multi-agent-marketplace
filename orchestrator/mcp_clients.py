@@ -6,6 +6,7 @@ from contextlib import AsyncExitStack
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from mcp.client.streamable_http import streamablehttp_client
 
 # Reasoning: Each domain agent is a *separate process* speaking MCP over stdio — this
 # module is the orchestrator's MCP *client*, the same way Claude Desktop or any other
@@ -19,6 +20,21 @@ AGENT_SERVERS = {
     "pricing": os.path.join(AGENTS_DIR, "pricing_agent"),
     "inventory": os.path.join(AGENTS_DIR, "inventory_agent"),
     "risk_support": os.path.join(AGENTS_DIR, "risk_support_agent"),
+}
+
+# Reasoning: Two transports, one client. Under stdio (the default) the orchestrator spawns
+# each agent as a child process — which only works when client and server share a machine
+# and a process tree. Under Docker Compose each agent is its own container, so there is no
+# child process to pipe to and the connection has to be a network one. MCP_TRANSPORT picks
+# which, and it is the *only* thing that differs: the same agent code, the same
+# initialize -> list_tools -> call_tool protocol, and every layer above this file is
+# unchanged either way.
+MCP_TRANSPORT = os.getenv("MCP_TRANSPORT", "stdio").lower()
+
+AGENT_URLS = {
+    "pricing": os.getenv("PRICING_AGENT_URL", "http://localhost:8001/mcp"),
+    "inventory": os.getenv("INVENTORY_AGENT_URL", "http://localhost:8002/mcp"),
+    "risk_support": os.getenv("RISK_SUPPORT_AGENT_URL", "http://localhost:8003/mcp"),
 }
 
 # Reasoning: Maps the friendly tool name the LLM sees (matches TOOLS schema + eval set)
@@ -35,6 +51,32 @@ TOOL_ROUTES = {
     "create_support_ticket": ("risk_support", "mcp_create_support_ticket"),
     "escalate": ("risk_support", "mcp_escalate"),
 }
+
+
+async def _wait_for_http(url: str, agent_name: str, timeout: float = 120.0) -> None:
+    """Block until an agent's HTTP MCP endpoint is accepting connections."""
+    import httpx
+
+    deadline = asyncio.get_running_loop().time() + timeout
+    last_error: Exception | None = None
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        while asyncio.get_running_loop().time() < deadline:
+            try:
+                # Reasoning: Any HTTP status at all proves the server is up and listening.
+                # A bare GET on an MCP streamable-http endpoint is *expected* to be
+                # rejected (no session, wrong method/accept header) — 400/405/406 are
+                # success signals here, so status code is deliberately not checked. Only
+                # a transport-level failure means "not ready yet".
+                await client.get(url)
+                return
+            except httpx.HTTPError as e:
+                last_error = e
+                await asyncio.sleep(1.0)
+
+    raise TimeoutError(
+        f"Agent '{agent_name}' at {url} never became reachable within {timeout:.0f}s "
+        f"(last error: {last_error})"
+    )
 
 
 class MCPAgentPool:
@@ -54,8 +96,9 @@ class MCPAgentPool:
         self._closed = threading.Event()
         self._shutdown_event: asyncio.Event | None = None
         self._start_error: Exception | None = None
-        print("MCPAgentPool: connecting to pricing/inventory/risk_support agent servers "
-              "(each imports chromadb — first connect can take up to ~1 min)...", file=sys.stderr)
+        print(f"MCPAgentPool: connecting to pricing/inventory/risk_support agent servers "
+              f"over {MCP_TRANSPORT} (each imports chromadb — first connect can take up "
+              f"to ~1 min)...", file=sys.stderr)
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
         # Reasoning: Each agent subprocess pays its own Python startup + chromadb import
@@ -66,8 +109,15 @@ class MCPAgentPool:
         # not-yet-connected agent then failed with a bare KeyError instead of a clear
         # error. Failing loudly here is the whole fix. This cost is paid once per
         # process lifetime — the pool is a singleton reused for every later call.
-        if not self._ready.wait(timeout=120):
-            raise TimeoutError("MCPAgentPool: agent servers did not become ready within 120s")
+        # Reasoning: Under http this outer wait must outlast _wait_for_http's own 120s
+        # ceiling, otherwise it fires first and reports a generic timeout instead of the
+        # inner error naming which agent URL was unreachable — the strictly more useful
+        # message when a container fails to come up.
+        startup_timeout = float(os.getenv("MCP_STARTUP_TIMEOUT", "180" if MCP_TRANSPORT == "http" else "120"))
+        if not self._ready.wait(timeout=startup_timeout):
+            raise TimeoutError(
+                f"MCPAgentPool: agent servers did not become ready within {startup_timeout:.0f}s"
+            )
         if self._start_error:
             raise self._start_error
         print("MCPAgentPool: all agent servers connected.", file=sys.stderr)
@@ -89,17 +139,31 @@ class MCPAgentPool:
         try:
             async with AsyncExitStack() as stack:
                 async def connect(agent_name: str, agent_dir: str):
-                    # Reasoning: Launch "python server.py" with cwd set to the agent's
-                    # own directory, matching how each agent is meant to run
-                    # standalone/in its own container — server.py does
-                    # `from tools import ...`, a bare import that only resolves when
-                    # the agent directory is on sys.path.
-                    params = StdioServerParameters(
-                        command=sys.executable,
-                        args=["server.py"],
-                        cwd=agent_dir,
-                    )
-                    read, write = await stack.enter_async_context(stdio_client(params))
+                    if MCP_TRANSPORT == "http":
+                        url = AGENT_URLS[agent_name]
+                        # Reasoning: Wait for the port to answer *before* opening the MCP
+                        # connection rather than retrying the connection itself. A retry
+                        # loop around enter_async_context would re-register a new context
+                        # on the exit stack for every failed attempt, leaking the earlier
+                        # half-open ones; pre-flighting keeps the real connect a single
+                        # attempt. Containers legitimately need this window — each agent
+                        # imports chromadb before it binds its port.
+                        await _wait_for_http(url, agent_name)
+                        # Reasoning: streamablehttp_client yields a 3-tuple (the third is
+                        # a session-id getter), unlike stdio_client's 2-tuple.
+                        read, write, _ = await stack.enter_async_context(streamablehttp_client(url))
+                    else:
+                        # Reasoning: Launch "python server.py" with cwd set to the agent's
+                        # own directory, matching how each agent is meant to run
+                        # standalone/in its own container — server.py does
+                        # `from tools import ...`, a bare import that only resolves when
+                        # the agent directory is on sys.path.
+                        params = StdioServerParameters(
+                            command=sys.executable,
+                            args=["server.py"],
+                            cwd=agent_dir,
+                        )
+                        read, write = await stack.enter_async_context(stdio_client(params))
                     session = await stack.enter_async_context(ClientSession(read, write))
                     await session.initialize()
                     self._sessions[agent_name] = session

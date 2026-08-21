@@ -1,0 +1,24 @@
+# Keep build contexts small and avoid baking host-only or secret material into images.
+venv/
+env/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Secrets: the orchestrator receives MISTRAL_API_KEY at *run* time via compose env_file,
+# never copied into an image layer where it would persist in the image history.
+.env
+
+frontend/node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+.git/
+.gitignore
+.DS_Store
+
+# Dev/reporting artifacts with no role at runtime.
+# Note: rag/data/*.md is deliberately NOT excluded — those policy/catalog/case documents
+# are the RAG source corpus that rag/ingest.py rebuilds the vector store from.
+eval/results/

@@ -1,5 +1,13 @@
+import os
+import sys
+
+# Reasoning: Put the project root on sys.path explicitly rather than inheriting it as a
+# side effect of importing tools.py — server.py needs `shared.mcp_transport` itself.
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 from fastmcp import FastMCP
 from tools import check_stock, forecast_restock, flag_low_stock
+from shared.mcp_transport import run_agent_server
 
 # Reasoning: Initialize a FastMCP server named "inventory_agent".
 mcp = FastMCP("inventory_agent")
@@ -23,8 +31,6 @@ def mcp_flag_low_stock() -> str:
     return flag_low_stock()
 
 if __name__ == "__main__":
-    # Reasoning: Start the server using stdio transport.
-    # Log to stderr, never stdout — stdio transport uses stdout as the JSON-RPC channel.
-    import sys
-    print("Starting Inventory Agent MCP Server...", file=sys.stderr)
-    mcp.run()
+    # Reasoning: stdio by default (orchestrator spawns this as a subprocess), http when
+    # MCP_TRANSPORT=http so this same server can run as its own container.
+    run_agent_server(mcp, "inventory_agent")

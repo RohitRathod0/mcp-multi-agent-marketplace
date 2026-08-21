@@ -1,5 +1,15 @@
+import os
+import sys
+
+# Reasoning: Put the project root on sys.path explicitly rather than inheriting it as a
+# side effect of importing tools.py. server.py needs `shared.mcp_transport` itself, and
+# depending on another module's import side effect to make that resolve is the kind of
+# ordering trap that breaks the moment imports get reordered.
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 from fastmcp import FastMCP
 from tools import get_price, suggest_discount, compare_competitor_price
+from shared.mcp_transport import run_agent_server
 
 # Reasoning: We initialize a FastMCP server named "pricing_agent".
 # FastMCP simplifies exposing Python functions as MCP tools.
@@ -24,8 +34,7 @@ def mcp_compare_competitor_price(product_id: str) -> str:
     return compare_competitor_price(product_id)
 
 if __name__ == "__main__":
-    # Reasoning: Start the server using stdio transport by default, which is standard for MCP.
-    # Log to stderr, never stdout — stdio transport uses stdout as the JSON-RPC channel.
-    import sys
-    print("Starting Pricing Agent MCP Server...", file=sys.stderr)
-    mcp.run()
+    # Reasoning: stdio by default (orchestrator spawns this as a subprocess), http when
+    # MCP_TRANSPORT=http so this same server can run as its own container. See
+    # shared/mcp_transport.py for why both transports are needed.
+    run_agent_server(mcp, "pricing_agent")

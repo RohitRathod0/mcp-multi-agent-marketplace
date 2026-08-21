@@ -1,0 +1,127 @@
+# Multi-Agent MCP Marketplace Orchestrator — full stack.
+#
+# Five containers: three independent MCP agent servers, the orchestrator that acts as
+# their MCP *client*, and the React UI. The agents talk MCP over HTTP here rather than
+# stdio, because a stdio pipe binds a server to its parent process and cannot cross a
+# container boundary — network transport is what makes "one container per agent" real
+# rather than three processes hiding inside one image.
+#
+#   docker compose up --build
+#   -> UI          http://localhost:5173
+#   -> API         http://localhost:8000/health
+#   -> agents      http://localhost:{8001,8002,8003}/mcp
+
+services:
+  pricing-agent:
+    build:
+      context: .
+      dockerfile: agents/pricing_agent/Dockerfile
+    image: mcp-pricing-agent
+    environment:
+      MCP_TRANSPORT: http
+      MCP_PORT: 8001
+    # Reasoning: Published to the host so each agent can be exercised as a standalone MCP
+    # server — with MCP Inspector or any other client — without the orchestrator running.
+    # That independent testability is a PRD success criterion, not a convenience.
+    ports:
+      - "8001:8001"
+    healthcheck:
+      # Reasoning: A plain TCP connect, not an HTTP status check. A bare GET against an
+      # MCP streamable-http endpoint is legitimately rejected (no session negotiated), so
+      # any status-code assertion would report a healthy server as unhealthy.
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8001), timeout=3).close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      # Reasoning: Each agent imports chromadb before it binds — slow enough that without
+      # a grace period the container gets marked unhealthy while it is still starting up.
+      start_period: 60s
+    restart: unless-stopped
+
+  inventory-agent:
+    build:
+      context: .
+      dockerfile: agents/inventory_agent/Dockerfile
+    image: mcp-inventory-agent
+    environment:
+      MCP_TRANSPORT: http
+      MCP_PORT: 8002
+    ports:
+      - "8002:8002"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8002), timeout=3).close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    restart: unless-stopped
+
+  risk-support-agent:
+    build:
+      context: .
+      dockerfile: agents/risk_support_agent/Dockerfile
+    image: mcp-risk-support-agent
+    environment:
+      MCP_TRANSPORT: http
+      MCP_PORT: 8003
+    ports:
+      - "8003:8003"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8003), timeout=3).close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    restart: unless-stopped
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: orchestrator/Dockerfile
+    image: mcp-orchestrator
+    # Reasoning: MISTRAL_API_KEY is supplied at run time from .env and never copied into
+    # an image layer. The orchestrator is the only service that gets it — the agents never
+    # call a model, so they are never handed the credential.
+    env_file:
+      - .env
+    environment:
+      MCP_TRANSPORT: http
+      # Reasoning: Compose service names, resolved on the internal network. These are the
+      # only lines that differ from the local stdio setup — the router, the synthesizer,
+      # and the agents themselves are byte-identical in both modes.
+      PRICING_AGENT_URL: http://pricing-agent:8001/mcp
+      INVENTORY_AGENT_URL: http://inventory-agent:8002/mcp
+      RISK_SUPPORT_AGENT_URL: http://risk-support-agent:8003/mcp
+    ports:
+      - "8000:8000"
+    # Reasoning: Wait for healthy, not merely started. The orchestrator opens all three MCP
+    # sessions during FastAPI startup, so booting it against a not-yet-listening agent
+    # turns a startup race into a hard failure.
+    depends_on:
+      pricing-agent:
+        condition: service_healthy
+      inventory-agent:
+        condition: service_healthy
+      risk-support-agent:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Reasoning: localhost, not the "orchestrator" service name — this URL is used by
+        # the user's browser on the host, which has no access to Docker's internal DNS.
+        VITE_API_URL: http://localhost:8000
+    image: mcp-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - orchestrator
+    restart: unless-stopped
