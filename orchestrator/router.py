@@ -10,7 +10,7 @@ from typing import TypedDict
 from langgraph.graph import StateGraph, END
 
 from shared.config import MISTRAL_API_KEY, MODEL_NAME
-from shared.mistral_utils import call_mistral_with_retry
+from shared.mistral_utils import REQUEST_TIMEOUT_MS, call_mistral_with_retry
 from orchestrator.mcp_clients import get_agent_pool, TOOL_ROUTES
 
 # Reasoning: Initialize a single Mistral client reused by all orchestrator nodes.
@@ -48,7 +48,7 @@ TOOLS = [
     {"type": "function", "function": {"name": "check_seller_risk", "description": "Assess risk level for a seller.", "parameters": {"type": "object", "properties": {"seller_id": {"type": "string"}}, "required": ["seller_id"]}}},
     {"type": "function", "function": {"name": "get_return_pattern", "description": "Get historical return patterns for a seller.", "parameters": {"type": "object", "properties": {"seller_id": {"type": "string"}}, "required": ["seller_id"]}}},
     {"type": "function", "function": {"name": "create_support_ticket", "description": "Create a support ticket for an order issue.", "parameters": {"type": "object", "properties": {"order_id": {"type": "string"}, "issue": {"type": "string"}}, "required": ["order_id", "issue"]}}},
-    {"type": "function", "function": {"name": "escalate", "description": "Escalate a ticket to a human when confidence is low.", "parameters": {"type": "object", "properties": {"ticket_id": {"type": "string"}}, "required": ["ticket_id"]}}},
+    {"type": "function", "function": {"name": "escalate", "description": "Escalate a ticket to a human when confidence is low. Pass the reason when a tool reported LOW_CONFIDENCE_ESCALATION_REQUIRED or INSUFFICIENT_GROUNDING.", "parameters": {"type": "object", "properties": {"ticket_id": {"type": "string"}, "reason": {"type": "string", "description": "Why this is being escalated (optional)."}}, "required": ["ticket_id"]}}},
 ]
 
 # --- Node: Router ---
@@ -78,10 +78,13 @@ def router_node(state: OrchestratorState) -> OrchestratorState:
     for _ in range(MAX_TOOL_ROUNDS):
         # Reasoning: Call Mistral with the full tool list, retrying on rate limits (429).
         # Mistral returns tool_calls in its response — possibly more than one per turn.
+        # Reasoning: Bounded request — a stalled connection would otherwise hang the whole
+        # run with no error for the retry wrapper to catch.
         response = call_mistral_with_retry(lambda: client.chat.complete(
             model=MODEL_NAME,
             tools=TOOLS,
-            messages=messages
+            messages=messages,
+            timeout_ms=REQUEST_TIMEOUT_MS,
         ))
         assistant_message = response.choices[0].message
 
@@ -135,7 +138,13 @@ def router_node(state: OrchestratorState) -> OrchestratorState:
 # Reasoning: This node takes the tool result and asks Mistral to write a clean final answer.
 def synthesizer_node(state: OrchestratorState) -> OrchestratorState:
     from orchestrator.synthesizer import synthesize
-    state["final_answer"] = synthesize(state["messages"], client, MODEL_NAME)
+    # Reasoning: Pass the tool-call trace so the synthesizer can tell "no tool returned
+    # anything" apart from "tools ran and returned data". Without it the synthesizer
+    # cannot distinguish the two cases and will confidently narrate evidence that was
+    # never gathered — the exact failure the hallucination audit surfaced.
+    state["final_answer"] = synthesize(
+        state["messages"], client, MODEL_NAME, tool_calls=state.get("tool_calls", [])
+    )
     return state
 
 # --- Graph Assembly ---

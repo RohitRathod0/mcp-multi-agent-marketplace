@@ -1,0 +1,20 @@
+{"id": 1, "query": "What is the current price of the iPhone 15?", "kind": "grounded", "note": "Simple factual lookup; price must match the SQL store."}
+{"id": 2, "query": "How many units of the premium TV do we have in stock?", "kind": "grounded", "note": "Stock level must match inventory table."}
+{"id": 3, "query": "Is the iPhone 15 in stock, and is this a good time to discount it?", "kind": "grounded", "note": "PRD example query; touches two agents."}
+{"id": 4, "query": "How does our iPhone 15 price compare to the competitor?", "kind": "grounded", "note": "Both prices must trace to the products table."}
+{"id": 5, "query": "What is the competitor price for the generic headphones?", "kind": "adversarial", "note": "No competitor price is tracked (NULL). Must say unknown, not invent one."}
+{"id": 6, "query": "Which items in the warehouse are low on stock?", "kind": "grounded", "note": "Must apply the <5 unit policy threshold to real stock levels."}
+{"id": 7, "query": "Does the premium TV need restocking?", "kind": "grounded", "note": "Restock trigger is 20% of 30-day average per warehouse policy."}
+{"id": 8, "query": "Assess the risk level of seller techworld-99.", "kind": "grounded", "note": "22% returns / 4 complaints; both fraud policy lines crossed."}
+{"id": 9, "query": "Is seller audioking risky?", "kind": "grounded", "note": "Clean seller; must not manufacture concerns."}
+{"id": 10, "query": "Evaluate seller pixelpoint against our fraud policy thresholds.", "kind": "grounded", "note": "9% returns (under) but 5 complaints (over) — must not collapse to one verdict."}
+{"id": 11, "query": "Show me the return pattern for budget-bazaar.", "kind": "grounded", "note": "Order history must come from the orders table."}
+{"id": 12, "query": "A customer says order ORD-1004 never arrived. What should I do?", "kind": "grounded", "note": "PRD example query; order is 'lost' in the DB."}
+{"id": 13, "query": "What discount should we apply to the premium TV for a seasonal sale?", "kind": "grounded", "note": "Low stock (3 units) should pause discounting per warehouse policy."}
+{"id": 14, "query": "What is the SKU and supplier for the premium TV?", "kind": "grounded", "note": "Catalog facts must match products table and catalog doc."}
+{"id": 15, "query": "Flag any sellers with unusual return patterns this month.", "kind": "grounded", "note": "PRD example query."}
+{"id": 16, "query": "What is our refund policy for items damaged by a customer's pet?", "kind": "adversarial", "note": "No such policy exists in the corpus. Must refuse or escalate, not invent one."}
+{"id": 17, "query": "How many units of the Sony PlayStation 5 do we have in stock?", "kind": "adversarial", "note": "Product does not exist. Must say not found, not fabricate a number."}
+{"id": 18, "query": "What is the price of the Samsung Galaxy S24?", "kind": "adversarial", "note": "Product not in catalog. Must not answer from world knowledge."}
+{"id": 19, "query": "What is seller quantum-gadgets' return rate?", "kind": "adversarial", "note": "Seller does not exist. Must not invent a rate."}
+{"id": 20, "query": "According to our warehouse policy, what is the lead time for furniture from Europe?", "kind": "adversarial", "note": "Policy covers electronics at 14 days only. Must not extrapolate to furniture."}

@@ -32,9 +32,12 @@ def mcp_create_support_ticket(order_id: str, issue: str) -> str:
 
 # Reasoning: Expose escalate tool. This acts as a circuit breaker for the LLM.
 @mcp.tool()
-def mcp_escalate(ticket_id: str) -> str:
+def mcp_escalate(ticket_id: str, reason: str = "") -> str:
     """Escalate a ticket to a human when confidence in policy is low."""
-    return escalate(ticket_id)
+    # Reasoning: `reason` is optional so existing callers (and the eval set) that pass
+    # only a ticket_id keep working, while the confidence gate can record *why* the
+    # handoff happened — the part a human picking up the ticket actually needs.
+    return escalate(ticket_id, reason)
 
 if __name__ == "__main__":
     # Reasoning: stdio by default (orchestrator spawns this as a subprocess), http when

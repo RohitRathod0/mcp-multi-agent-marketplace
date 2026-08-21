@@ -9,6 +9,11 @@ env/
 .venv/
 .DS_Store
 
+# Generated SQLite store. Rebuildable at any time from db/seed.sql (which IS tracked),
+# and it mutates at runtime as support tickets are created and escalated — tracking it
+# would turn every demo run into a binary diff.
+db/marketplace.db
+
 # Stray debug/log files (e.g. from mistyped Windows-path shell redirects)
 *stderr_log*
 eval_debug_log.txt

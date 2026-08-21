@@ -47,6 +47,12 @@ def evaluate(prompt_version: str, output_csv: str, eval_filename: str = "eval_se
     routing_correct_count = 0
     tool_correct_count = 0
     grounded_count = 0
+    # Reasoning: Count infrastructure failures separately from model failures. A Mistral
+    # read-timeout is not the prompt choosing the wrong tool, but the harness previously
+    # scored it as a routing AND tool AND grounding miss — so a network blip quietly
+    # lowered the published prompt-accuracy figure and looked like a regression. These
+    # queries are still reported (never silently dropped), just attributed honestly.
+    api_error_count = 0
     
     print(f"\n==================================================")
     print(f" Running Evaluation Harness (Prompt Version: {prompt_version})")
@@ -93,6 +99,7 @@ def evaluate(prompt_version: str, output_csv: str, eval_filename: str = "eval_se
             agents_called = {"unknown"}
             tool_res = str(e)
             final_ans = ""
+            api_error_count += 1
 
         act_agent = TOOL_TO_AGENT.get(act_tool, "unknown")
 
@@ -166,6 +173,16 @@ def evaluate(prompt_version: str, output_csv: str, eval_filename: str = "eval_se
     print(f" Routing Accuracy : {routing_correct_count}/{total} ({routing_correct_count/total*100:.1f}%)")
     print(f" Tool Selection   : {tool_correct_count}/{total} ({tool_correct_count/total*100:.1f}%)")
     print(f" Grounding Rate   : {grounded_count}/{total} ({grounded_count/total*100:.1f}%)")
+    if api_error_count:
+        # Reasoning: Report both figures rather than silently excluding the failures.
+        # The raw number is what the run actually produced; the adjusted one is what the
+        # prompt is responsible for. Hiding either would be the dishonest choice.
+        scored = total - api_error_count
+        print(f" API errors       : {api_error_count} (Mistral timeout/transport — not a routing decision)")
+        print(f" Excluding those  : routing {routing_correct_count}/{scored} "
+              f"({routing_correct_count/scored*100:.1f}%), tool {tool_correct_count}/{scored} "
+              f"({tool_correct_count/scored*100:.1f}%), grounded {grounded_count}/{scored} "
+              f"({grounded_count/scored*100:.1f}%)")
     print(f" Results Saved To : {csv_file_path}")
     print("==================================================\n")
     

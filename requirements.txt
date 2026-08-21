@@ -6,6 +6,7 @@ langgraph
 mistralai==1.5.0
 qdrant-client
 chromadb
+rank-bm25
 python-dotenv
 sqlalchemy
 httpx

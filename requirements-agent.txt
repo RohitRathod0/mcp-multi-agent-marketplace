@@ -7,3 +7,9 @@
 # agent images from carrying (and needing credentials for) the Mistral SDK.
 fastmcp
 chromadb
+# Reasoning: lexical half of the hybrid retriever (rag/retriever.py) — the embedding arm
+# alone misses exact policy terms that BM25 matches literally.
+rank-bm25
+# Reasoning: agents read their product/seller/order facts from the synthetic SQLite store
+# (shared/db_models.py) rather than in-memory dicts.
+sqlalchemy
